@@ -254,9 +254,9 @@ void loop()
             buttonPressed[i] = false;
             interrupts();
 
-            Serial.printf("Button %u pressed (GPIO %u)\n",
-                          i,
-                          BUTTON_PINS[i]);
+            // Serial.printf("Button %u pressed (GPIO %u)\n",
+            //               i,
+            //               BUTTON_PINS[i]);
             needsClear = true;
             needsDraw = true;
         }
