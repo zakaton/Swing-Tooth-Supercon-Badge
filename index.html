@@ -1,11 +1,36 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
+    <title>Swing Tooth</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>ESP32 BLE</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/github-fork-ribbon-css/0.2.3/gh-fork-ribbon.min.css"
+    />
   </head>
+  <style>
+    .github-fork-ribbon:before {
+      background-color: #333;
+    }
+    footer {
+      position: fixed;
+      bottom: 0;
+      width: 100%;
+      text-align: center;
+      padding-bottom: 1rem;
+      z-index: -1;
+    }
+  </style>
   <body>
+    <a
+      class="github-fork-ribbon"
+      href="https://github.com/brilliantsole/BrilliantWear-JavaScript-SDK"
+      data-ribbon="View on GitHub"
+      title="View on GitHub"
+      target="_blank"
+      >View on GitHub</a
+    >
+    <h1>Swing Tooth</h1>
     <button id="connect">Connect</button>
     <button id="send" disabled>Send Test</button>
     <pre id="status">Disconnected</pre>
