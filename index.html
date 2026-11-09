@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ESP32 BLE</title>
+  </head>
+  <body>
+    <button id="connect">Connect</button>
+    <button id="send" disabled>Send Test</button>
+    <pre id="status">Disconnected</pre>
+
+    <script>
+      const SERVICE_UUID = "f1a00001-0000-1000-8000-00805f9b34fb";
+      const CHAR_UUID = "f1a00002-0000-1000-8000-00805f9b34fb";
+
+      let device;
+      let characteristic;
+
+      const status = document.getElementById("status");
+      const sendButton = document.getElementById("send");
+
+      function log(message) {
+        status.textContent = message;
+      }
+
+      async function connect() {
+        try {
+          log("Selecting device...");
+
+          device = await navigator.bluetooth.requestDevice({
+            filters: [{ services: [SERVICE_UUID] }],
+          });
+
+          device.addEventListener("gattserverdisconnected", () => {
+            characteristic = null;
+            sendButton.disabled = true;
+            log("Disconnected");
+          });
+
+          log("Connecting...");
+
+          const server = await device.gatt.connect();
+
+          const service = await server.getPrimaryService(SERVICE_UUID);
+
+          characteristic = await service.getCharacteristic(CHAR_UUID);
+
+          sendButton.disabled = false;
+
+          log("Connected to " + device.name);
+          connectWebSocket();
+        } catch (error) {
+          log("Error: " + error);
+        }
+      }
+
+      // Write a Uint8Array to the ESP32
+      async function writeData(data) {
+        if (!characteristic) {
+          throw new Error("Not connected");
+        }
+
+        await characteristic.writeValueWithResponse(
+          data instanceof Uint8Array ? data : new Uint8Array(data),
+        );
+      }
+
+      // Convenience function for strings
+      async function writeString(value) {
+        const data = new TextEncoder().encode(value);
+        await writeData(data);
+      }
+
+      document.getElementById("connect").onclick = connect;
+
+      const WRITE_INTERVAL_MS = 20; // 50 updates/sec
+
+      let latestXY = null;
+      let lastWriteTime = 0;
+      let writeTimer = null;
+      let writing = false;
+
+      function writeXY(x, y) {
+        latestXY = { x, y };
+
+        if (!writing) {
+          processXY();
+        }
+      }
+
+      async function processXY() {
+        if (writing || !characteristic || !latestXY) return;
+
+        writing = true;
+
+        const { x, y } = latestXY;
+        latestXY = null;
+
+        try {
+          const buffer = new ArrayBuffer(8);
+          const view = new DataView(buffer);
+
+          view.setFloat32(0, x, true);
+          view.setFloat32(4, y, true);
+
+          await characteristic.writeValueWithResponse(buffer);
+        } catch (error) {
+          console.error("BLE write error:", error);
+        }
+
+        writing = false;
+        lastWriteTime = Date.now();
+
+        if (latestXY) {
+          const remaining = WRITE_INTERVAL_MS - (Date.now() - lastWriteTime);
+
+          if (remaining <= 0) {
+            processXY();
+          } else {
+            clearTimeout(writeTimer);
+            writeTimer = setTimeout(processXY, remaining);
+          }
+        }
+      }
+
+      sendButton.onclick = async () => {
+        try {
+          await writeString("Hello ESP32!");
+          //   log("Data sent");
+        } catch (error) {
+          log("Write error: " + error);
+        }
+      };
+
+      const WS_URL = "ws://localhost:5500";
+
+      let ws;
+
+      // Connect to local WebSocket server
+      function connectWebSocket() {
+        ws = new WebSocket(WS_URL);
+
+        ws.onopen = () => {
+          console.log("WebSocket connected");
+        };
+
+        ws.onmessage = async (event) => {
+          try {
+            const data = JSON.parse(event.data);
+
+            // console.log("data", data);
+
+            if (
+              typeof data.angle !== "number" ||
+              typeof data.velocity !== "number"
+            ) {
+              return;
+            }
+
+            // Forward coordinates over BLE
+            await writeXY(
+              (180 * data.angle) / Math.PI,
+              data.velocity * window.velocityScalar,
+            );
+
+            // console.log("Sent:", data.angle, data.velocity);
+          } catch (error) {
+            console.error("WebSocket message error:", error);
+          }
+        };
+
+        ws.onclose = () => {
+          console.log("WebSocket disconnected");
+        };
+
+        ws.onerror = (error) => {
+          console.error("WebSocket error:", error);
+        };
+      }
+      window.velocityScalar = 2.2;
+    </script>
+  </body>
+</html>
